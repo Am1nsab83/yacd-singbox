@@ -64,6 +64,25 @@ function mapLatency(names: string[], getProxy: (name: string) => { history: Late
   return result;
 }
 
+function setUnavailableProxyCache(proxyName: string) {
+  try {
+    const key = 'yacd_unavailable_proxies';
+    const cached = JSON.parse(localStorage.getItem(key) || '[]');
+    if (!cached.includes(proxyName)) {
+      cached.push(proxyName);
+      localStorage.setItem(key, JSON.stringify(cached));
+    }
+  } catch {}
+}
+
+function getUnavailableProxyCache(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem('yacd_unavailable_proxies') || '[]');
+  } catch {
+    return [];
+  }
+}
+
 export function fetchProxies(apiConfig: ClashAPIConfig) {
   return async (dispatch: any, getState: any) => {
     const [proxiesData, providersData] = await Promise.all([
@@ -80,6 +99,14 @@ export function fetchProxies(apiConfig: ClashAPIConfig) {
       ...getDelay(getState()),
       ...mapLatency(Object.keys(proxies), (name) => proxies[name]),
     };
+
+    // Mark cached unavailable proxies as unavailable
+    const unavailable = getUnavailableProxyCache();
+    for (const name of unavailable) {
+      if (proxies[name]) {
+        delayNext[name] = { kind: 'Result', number: 0 };
+      }
+    }
 
     // proxies that are not from a provider
     const dangleProxyNames = [];
@@ -280,11 +307,30 @@ function requestDelayForProxyOnce(apiConfig: ClashAPIConfig, name: string, laten
 
     try {
       const res = await proxiesAPI.requestDelayForProxy(apiConfig, name, latencyTestUrl);
-      if (res.ok) {
-        const { delay } = await res.json();
+      // Check for 503 or 504 status codes and treat as unavailable
+      if (res.status === 503 || res.status === 504) {
+        setUnavailableProxyCache(name);
         dispatch('set latency result', (s) => {
-          s.proxies.delay = { ...getDelay(getState()), [name]: { kind: 'Result', number: delay } };
+          s.proxies.delay = { ...getDelay(getState()), [name]: { kind: 'Result', number: 0 } };
         });
+        return;
+      }
+      if (res.ok) {
+        const json = await res.json();
+        if (json && typeof json.message === 'string' && (
+          json.message === 'Timeout' ||
+          json.message === 'An error occurred in the delay test'
+        )) {
+          setUnavailableProxyCache(name);
+          dispatch('set latency result', (s) => {
+            s.proxies.delay = { ...getDelay(getState()), [name]: { kind: 'Result', number: 0 } };
+          });
+        } else {
+          const { delay } = json;
+          dispatch('set latency result', (s) => {
+            s.proxies.delay = { ...getDelay(getState()), [name]: { kind: 'Result', number: delay } };
+          });
+        }
       } else {
         dispatch('set latency testing error', (s) => {
           s.proxies.delay = {
