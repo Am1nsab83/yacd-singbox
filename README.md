@@ -6,7 +6,7 @@
 
 ## Usage
 
-The site [http://yacd.haishan.me](http://yacd.haishan.me) is served with HTTP not HTTPS is because many browsers block requests to HTTP resources from a HTTPS website. If you think it's not safe, you could just download the [zip of the gh-pages](https://github.com/haishanh/yacd/archive/gh-pages.zip), unzip and serve those static files with a web server(like Nginx).
+The site [http://yacd.haishan.me](http://yacd.haishan.me) ( this is not patched for singbox ) is served with HTTP not HTTPS is because many browsers block requests to HTTP resources from a HTTPS website. If you think it's not safe, you could just download the [zip of the yacd-singbox](https://github.com/Am1nsab83/yacd-singbox/releases/download/v1/yacd-singbox.zip), unzip and serve those static files with a web server(like Nginx).
 
 **Docker image**
 
